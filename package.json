@@ -1,0 +1,30 @@
+{
+  "name": "elevate-uac",
+  "version": "1.0.0",
+  "description": "UAC bypass utility for Windows security testing - Node.js implementation",
+  "main": "index.js",
+  "type": "commonjs",
+  "scripts": {
+    "start": "node index.js",
+    "test": "node index.js --help"
+  },
+  "keywords": [
+    "uac",
+    "windows",
+    "security",
+    "pentesting"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "ffi-napi": "^4.0.3",
+    "ref-napi": "^3.0.3",
+    "ref-struct-napi": "^1.1.1"
+  },
+  "engines": {
+    "node": ">=12.0.0"
+  },
+  "os": [
+    "win32"
+  ]
+}
