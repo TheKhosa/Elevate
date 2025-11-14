@@ -29,9 +29,7 @@ This tool implements a UAC bypass technique that:
 - **Operating System**: Windows (Win32 only)
 - **Node.js**: Version 12.0.0 or higher
 - **Dependencies**:
-  - ffi-napi (for Windows API calls)
-  - ref-napi (for memory references)
-  - ref-struct-napi (for C structures)
+  - koffi (modern FFI library for Windows API calls - no native compilation needed!)
 
 ## Installation
 
@@ -164,12 +162,22 @@ This tool is **Windows-only** because it relies on Windows-specific APIs. It wil
 "os": ["win32"]
 ```
 
+### Installation Issues
+
+If you encounter errors during `npm install`:
+- This project uses **koffi** which doesn't require native compilation
+- If you see errors about `ffi-napi` or `node-gyp`, ensure you have the latest code
+- Simply run `npm install` - no build tools required!
+
 ## Conversion Notes
 
 This Node.js version was converted from the original PowerShell script. Key differences:
 
-1. **FFI Implementation**: Uses `ffi-napi` to call Windows DLLs instead of PowerShell's `Add-Type`
-2. **Structure Definitions**: Uses `ref-struct-napi` to define C structures
+1. **FFI Implementation**: Uses `koffi` (modern FFI library) to call Windows DLLs instead of PowerShell's `Add-Type`
+   - No native compilation required (unlike ffi-napi)
+   - Better performance and easier to install
+   - Works with Node.js 12.0+ including latest versions
+2. **Structure Definitions**: Uses `koffi.struct()` to define C structures
 3. **Error Handling**: Enhanced error reporting with GetLastError() calls
 4. **CLI Interface**: Improved command-line argument parsing
 5. **Modularity**: Exported functions can be used programmatically
@@ -199,7 +207,7 @@ The authors of this tool are not responsible for any misuse or damage caused by 
 
 - [Windows Token Manipulation](https://docs.microsoft.com/en-us/windows/win32/secauthz/access-tokens)
 - [UAC Architecture](https://docs.microsoft.com/en-us/windows/security/identity-protection/user-account-control/how-user-account-control-works)
-- [Node.js FFI](https://github.com/node-ffi-napi/node-ffi-napi)
+- [Koffi - Fast and Easy Native Module](https://github.com/Koromix/rygel/tree/master/koffi)
 
 ## Contributing
 
